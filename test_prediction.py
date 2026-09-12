@@ -85,15 +85,19 @@ print(f"      Historical matches: {len(history_df):,}")
 
 print("\n[3/4] Making sample prediction...")
 
+home_team = "Brazil"
+away_team = "Germany"
+neutral = False
+tournament = "Friendly"
+
 result = predict_match(
     model=model,
     history_df=history_df,
-    home_team="Brazil",
-    away_team="Germany",
-    neutral=False,
-    tournament="Friendly",
+    home_team=home_team,
+    away_team=away_team,
+    neutral=neutral,
+    tournament=tournament
 )
-
 
 # ---------------------------------------------------------
 # 5. Display prediction
@@ -104,17 +108,11 @@ print("-" * 60)
 
 print(f"Home Team:       {result['home_team']}")
 print(f"Away Team:       {result['away_team']}")
-print(f"Neutral Venue:   {result['neutral']}")
-print(f"Tournament:      {result['tournament']}")
-print()
-print(f"Predicted Result: {result['predicted_result']}")
-print()
+print(f"Neutral Venue:   {neutral}")
+print(f"Tournament:      {tournament}")
 
-print("Probabilities:")
+print(f"\nPredicted Result: {result['predicted_result']}")
 
+print("\nProbabilities:")
 for outcome, probability in result["probabilities"].items():
-    print(f"  {outcome:<20} {probability:.2%}")
-
-print("-" * 60)
-print("SUCCESS: Prediction function works.")
-print("=" * 60)
+    print(f"{outcome}: {probability:.2%}")
