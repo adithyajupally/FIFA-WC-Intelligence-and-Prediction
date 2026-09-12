@@ -1,36 +1,45 @@
 from pathlib import Path
-import sys
 
 import pandas as pd
-import joblib
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-
-# Make the project root importable when this file is run directly.
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
 
 from src.match_prediction import predict_match
 
 
+# Project paths
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = BASE_DIR / "models" / "match_prediction_model.pkl"
+DATA_PATH = BASE_DIR / "data" / "matches_prepared.csv"
+
+
+# Load model and historical data
+import joblib
+
+model = joblib.load(MODEL_PATH)
+history_df = pd.read_csv(DATA_PATH)
+
+
+# Create FastAPI app
 app = FastAPI(
     title="Football Intelligence Prediction API",
-    description="Predict international football match outcomes using the trained ML model.",
+    description="API for international football match predictions.",
     version="1.0.0",
 )
 
 
-# Load these once when the API starts.
-MODEL_PATH = ROOT / "models" / "match_prediction_model.pkl"
-DATA_PATH = ROOT / "data" / "matches_prepared.csv"
-
-try:
-    model = joblib.load(MODEL_PATH)
-    history_df = pd.read_csv(DATA_PATH)
-except Exception as e:
-    model = None
-    history_df = None
-    startup_error = str(e)
+# Allow the Next.js frontend to communicate with the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class MatchRequest(BaseModel):
@@ -51,32 +60,21 @@ def root():
 
 @app.get("/health")
 def health():
-    if model is None or history_df is None:
-        return {
-            "status": "error",
-            "message": startup_error,
-        }
-
     return {
-        "status": "ok",
-        "model_loaded": True,
-        "data_loaded": True,
+        "status": "healthy",
+        "model_loaded": model is not None,
+        "data_loaded": history_df is not None,
     }
 
 
 @app.post("/predict")
 def predict(request: MatchRequest):
-    if model is None or history_df is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Model or historical data could not be loaded.",
-        )
 
-    if request.home_team.strip() == "" or request.away_team.strip() == "":
-        raise HTTPException(
-            status_code=400,
-            detail="Home team and away team are required.",
-        )
+    if not request.home_team.strip():
+        raise HTTPException(status_code=400, detail="Home team is required.")
+
+    if not request.away_team.strip():
+        raise HTTPException(status_code=400, detail="Away team is required.")
 
     if request.home_team.strip().lower() == request.away_team.strip().lower():
         raise HTTPException(
@@ -88,16 +86,16 @@ def predict(request: MatchRequest):
         result = predict_match(
             model=model,
             history_df=history_df,
-            home_team=request.home_team.strip(),
-            away_team=request.away_team.strip(),
+            home_team=request.home_team,
+            away_team=request.away_team,
             neutral=request.neutral,
-            tournament=request.tournament.strip(),
+            tournament=request.tournament,
         )
 
         return result
 
     except Exception as e:
         raise HTTPException(
-            status_code=400,
+            status_code=500,
             detail=str(e),
         )
